@@ -36,12 +36,29 @@ void UART_Init()
     SCON0     = 0x70;
 }
 
-void SPI_Init()
+void SMBus_Init()
 {
-    SFRPAGE   = SPI0_PAGE;
-    SPI0CFG   = 0x40;
-    SPI0CN    = 0x01;
-    SPI0CKR   = 0x7C;
+    SFRPAGE   = SMB0_PAGE;
+    SMB0CN    = 0x41;
+    SMB0CR    = 0xE9;
+}
+
+void ADC_Init()
+{
+    SFRPAGE   = ADC0_PAGE;
+    ADC0CN    = 0x80;
+}
+
+void DAC_Init()
+{
+    SFRPAGE   = DAC0_PAGE;
+    DAC0CN    = 0x80;
+}
+
+void Voltage_Reference_Init()
+{
+    SFRPAGE   = ADC0_PAGE;
+    REF0CN    = 0x03;
 }
 
 void Port_IO_Init()
@@ -51,9 +68,9 @@ void Port_IO_Init()
     // P0.2  -  SCK  (SPI0), Open-Drain, Digital
     // P0.3  -  MISO (SPI0), Open-Drain, Digital
     // P0.4  -  MOSI (SPI0), Open-Drain, Digital
-    // P0.5  -  Unassigned,  Open-Drain, Digital
-    // P0.6  -  Unassigned,  Open-Drain, Digital
-    // P0.7  -  Unassigned,  Open-Drain, Digital
+    // P0.5  -  NSS  (SPI0), Open-Drain, Digital
+    // P0.6  -  SDA (SMBus), Open-Drain, Digital
+    // P0.7  -  SCL (SMBus), Open-Drain, Digital
 
     // P1.0  -  Unassigned,  Open-Drain, Digital
     // P1.1  -  Unassigned,  Open-Drain, Digital
@@ -84,7 +101,7 @@ void Port_IO_Init()
 
     SFRPAGE   = CONFIG_PAGE;
     P0MDOUT   = 0x01;
-    XBR0      = 0x06;
+    XBR0      = 0x07;
     XBR2      = 0x40;
 }
 
@@ -102,7 +119,7 @@ void Oscillator_Init()
 void Interrupts_Init()
 {
     IE        = 0xB0;
-    IP        = 0xE0;
+    IP        = 0xD0;
 }
 
 // Initialization function for device,
@@ -112,7 +129,10 @@ void Init_Device(void)
     Reset_Sources_Init();
     Timer_Init();
     UART_Init();
-    SPI_Init();
+    SMBus_Init();
+    ADC_Init();
+    DAC_Init();
+    Voltage_Reference_Init();
     Port_IO_Init();
     Oscillator_Init();
     Interrupts_Init();
