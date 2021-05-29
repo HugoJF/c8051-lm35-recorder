@@ -318,7 +318,7 @@ void int_serial(void) __interrupt INTERRUPT_UART0 {
 // handles key presses
 void int_record_timer(void) __interrupt INTERRUPT_TIMER2 {
     float temperature;
-    int last_index;
+    int last_index, next_index;
     char write_value;
 
     TF2 = 0;
@@ -359,19 +359,26 @@ void int_record_timer(void) __interrupt INTERRUPT_TIMER2 {
         return;
     }
 
-    // convert value
+    // check if next_index overflows a char 
+    next_index = last_index + 1;
+    if (next_index == EEPROM_DATA_POINTER_ADDRESS) {
+        // skip data pointer to avoid chaos
+        next_index = 1;
+    }
+
+    // remap temperature to be stored in a single byte
     write_value = temperature_to_byte(temperature);
     if (g_bSuppressOutput == false) {
         printf_fast_f("Writing %d to EEPROM\n", write_value);
     }
 
     // write value
-    if (write_eeprom(EEPROM_DEVICE, last_index + 1, write_value) < 0) {
+    if (write_eeprom(EEPROM_DEVICE, next_index, write_value) < 0) {
         printf_fast_f("Failed to write temperature to EEPROM\n");
     }
 
     // update last index
-    if (write_eeprom(EEPROM_DEVICE, 0, last_index + 1) < 0) {
+    if (write_eeprom(EEPROM_DEVICE, EEPROM_DATA_POINTER_ADDRESS, next_index) < 0) {
         printf_fast_f("Failed to update EEPROM pointer\n");
     }
 }
