@@ -1,3 +1,5 @@
-# C8051 SPI RAM module 
+# C8051 LM35 recorder
 
-Firmware writes to a 8192-byte RAM module via SPI and prints them to the terminal. Writes a sequential value (0 to 255) to every address, read it back and prints it using `printf_fast_f` to virtual terminal using UART.
+This firmware emulates a LM35 using a DAC, to record temperatures and store them into an EEPROM module via I2C.
+
+Usage is displayed in serial terminal used as UI.
