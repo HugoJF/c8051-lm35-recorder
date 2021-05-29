@@ -11,7 +11,6 @@
 // TODO
 // - remove debug functions (own commit)
 // - use __bit where needed
-// - clean recording messages
 
 // Macros to make code more readable
 #define true (1)
@@ -318,8 +317,8 @@ void int_serial(void) __interrupt INTERRUPT_UART0 {
 // handles key presses
 void int_record_timer(void) __interrupt INTERRUPT_TIMER2 {
     float temperature;
-    int last_index, next_index;
-    char write_value;
+    int last_index;
+    unsigned char current_index, write_value;
 
     TF2 = 0;
 
@@ -342,15 +341,9 @@ void int_record_timer(void) __interrupt INTERRUPT_TIMER2 {
 
     // read ADC
     temperature = clamp_temperature(voltage_to_temperature(dac_to_voltage(read_adc(ADC_AIN_0_0, ADC_G1))));
-    if (g_bSuppressOutput == false) {
-        printf_fast_f("Read %f from ADC\n", temperature);
-    }
 
     // read last index
     last_index = read_eeprom(EEPROM_DEVICE, EEPROM_DATA_POINTER_ADDRESS);
-    if (g_bSuppressOutput == false) {
-        printf_fast_f("Last Index: %d\n", last_index);
-    }
 
     // check if eeprom returned errors
     if (last_index < 0) {
@@ -359,26 +352,28 @@ void int_record_timer(void) __interrupt INTERRUPT_TIMER2 {
         return;
     }
 
-    // check if next_index overflows a char 
-    next_index = last_index + 1;
-    if (next_index == EEPROM_DATA_POINTER_ADDRESS) {
+    // check if current_index overflows a char 
+    current_index = (unsigned char) last_index + 1;
+    if (current_index == EEPROM_DATA_POINTER_ADDRESS) {
         // skip data pointer to avoid chaos
-        next_index = 1;
+        current_index = 1;
     }
 
     // remap temperature to be stored in a single byte
     write_value = temperature_to_byte(temperature);
-    if (g_bSuppressOutput == false) {
-        printf_fast_f("Writing %d to EEPROM\n", write_value);
-    }
 
     // write value
-    if (write_eeprom(EEPROM_DEVICE, next_index, write_value) < 0) {
+    if (write_eeprom(EEPROM_DEVICE, current_index, write_value) < 0) {
         printf_fast_f("Failed to write temperature to EEPROM\n");
     }
 
-    // update last index
-    if (write_eeprom(EEPROM_DEVICE, EEPROM_DATA_POINTER_ADDRESS, next_index) < 0) {
+    // report user temperature that was stored
+    if (g_bSuppressOutput == false) {
+        printf_fast_f("[INT] Recorded %fC to address %u in EEPROM\n", temperature, current_index);
+    }
+
+    // update data pointer
+    if (write_eeprom(EEPROM_DEVICE, EEPROM_DATA_POINTER_ADDRESS, current_index) < 0) {
         printf_fast_f("Failed to update EEPROM pointer\n");
     }
 }
