@@ -9,17 +9,16 @@
 // Timer2 -> Timer for recording interrupts
 
 // TODO
-// - handle eeprom read/write errors
 // - remove delay
 // - print usage
 // - debug macro?
 // - remove debug functions
-// - sizeof works?
-// - check if eeprom pointer is working as expected
+// - play around with periods and shit to get more range in interval + add a conversion of seconds to units
+// - handle eeprom limits
 
 // Macros to make code more readable
-#define true 1
-#define false 0
+#define true (1)
+#define false (0)
 
 // CLI Operations
 #define OP_INTERVAL 'i'
@@ -32,31 +31,46 @@
 #define OP_RECORD 'z'
 
 // EEPROM
-#define EEPROM_WRITE 0
-#define EEPROM_READ 1
-#define EEPROM_DEVICE 0xA0
+#define EEPROM_WRITE (0)
+#define EEPROM_READ (1)
+#define EEPROM_DEVICE (0xA0)
 
 // ADC AMUX selection
-#define ADC_AIN_0_0 0
-#define ADC_AIN_0_1 1
-#define ADC_AIN_0_2 2
-#define ADC_AIN_0_3 3
-#define ADC_HVDA 4
-#define ADC_AGND 5
-#define ADC_P3EVEN 6
-#define ADC_P3ODD 7
-#define ADC_TEMP 8
+#define ADC_AIN_0_0 (0)
+#define ADC_AIN_0_1 (1)
+#define ADC_AIN_0_2 (2)
+#define ADC_AIN_0_3 (3)
+#define ADC_HVDA (4)
+#define ADC_AGND (5)
+#define ADC_P3EVEN (6)
+#define ADC_P3ODD (7)
+#define ADC_TEMP (8)
 
 // ADC Gains
-#define ADC_G1 0
-#define ADC_G2 1
-#define ADC_G4 2
-#define ADC_G8 3
-#define ADC_ADC_G16 4
-#define ADC_GHALF 6
+#define ADC_G1 (0)
+#define ADC_G2 (1)
+#define ADC_G4 (2)
+#define ADC_G8 (3)
+#define ADC_ADC_G16 (4)
+#define ADC_GHALF (6)
+
+// temperature limits
+#define MAX_TEMPERATURE (51.0f)
+#define MIN_TEMPERATURE (0.0f)
+
+// lm35 voltage/temperature relation
+#define VOLTS_PER_CELSIUS (0.01f)
+
+// useful datatype limits
+#define CHAR_MIN (0)
+#define CHAR_MAX (255)
 
 // ADC/DAC conversion ratio = 4096 (2^n) / 2.43 (VREF) with n=12 bits
-#define ADC_RATIO 1685.5967
+#define ADC_RATIO (1685.5967f)
+
+// Timer2 period in milliseconds
+#define TIMER2_PERIOD_MS (20) /*ms*/;
+
 
 // Last key that was pressed by serial input
 volatile unsigned char g_cKeypress = '\0';
@@ -64,17 +78,17 @@ volatile unsigned char g_cKeypress = '\0';
 // Input buffer
 unsigned char g_szBuffer[33];
 
+// Flag to signal uC is waiting user input
+unsigned char g_bSuppressOutput = false;
+
 // If firmware is recording temperatures
-unsigned char g_bRecording = 0;
+unsigned char g_bRecording = false;
 
 // Time units since last recording
 unsigned int g_iLastRecording = 0;
 
 // Time units to wait to record temperature
-unsigned int g_iRecordingInterval = 5000;
-
-// Recording timer period
-unsigned int g_iRecordingTimerPeriod = 20 /*ms*/; // TODO: macro?
+unsigned int g_iRecordingInterval = 5000 /*ms*/;
 
 
 // handles printf
@@ -88,37 +102,6 @@ void putchar(unsigned char c) {
 // just prints a new line
 void newline(void) {
     printf_fast_f("\n");
-}
-
-
-// TODO: maybe deprecated
-unsigned char in_array(unsigned char needle, unsigned char pool[], unsigned int size) {
-    unsigned int i;
-    for (i = 0; i < size; ++i)
-    {
-        if (pool[i] == needle) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-
-// TODO: deprecated (in_array too)
-unsigned char is_operation(unsigned char c) {
-    unsigned char operations[] = {
-        OP_INTERVAL, 
-        OP_TEMPERATURE, 
-        OP_START, 
-        OP_STOP, 
-        OP_VIEW, 
-        OP_RESET, 
-        OP_GET,
-        OP_RECORD
-    };
-
-    return in_array(c, operations, 8);
 }
 
 
@@ -215,34 +198,37 @@ int read_eeprom(unsigned char device, unsigned char address) {
     return data;
 }
 
+float clamp_temperature(float t) {
+    if (t > MAX_TEMPERATURE) {
+        return MAX_TEMPERATURE;
+    }
 
-// TODO: extract constants
+    if (t < MIN_TEMPERATURE) {
+        return MIN_TEMPERATURE;
+    }
+
+    return t;
+}
+
 unsigned char temperature_to_byte(float f) {
-    if (f > 51.0f) {
-        return 255;
-    }
+    f = clamp_temperature(f);
 
-    if (f < 0.0f) {
-        return 0;
-    }
-
-    return f / 51.0f * 255 /* temperature range 0C to 51C */;
+    return f / MAX_TEMPERATURE * CHAR_MAX /* temperature range 0C to 51C */;
 }
 
 
 // TODO: extract constants
 float byte_to_temperature(unsigned char c) {
-    return c / 255.0f * 51.0f /* temperature range 0C to 51C */;
+    return c /  (float) CHAR_MAX * MAX_TEMPERATURE /* temperature range 0C to 51C */;
 }
 
-
 float voltage_to_temperature(float v) {
-    return v / 0.01 /* LM35 10mv/C */;
+    return v / VOLTS_PER_CELSIUS;
 }
 
 
 float temperature_to_voltage(float t) {
-    return t * 0.01 /* LM35 10mv/C */;
+    return t * VOLTS_PER_CELSIUS;
 }
 
 
@@ -309,6 +295,7 @@ unsigned char read_char(void) {
 
 
 // reads `len` chars and store them in `data`
+// TODO: reprecated
 unsigned char read_string(unsigned char data[], unsigned char len) {
     unsigned char i, key;
 
@@ -330,14 +317,14 @@ unsigned char read_string(unsigned char data[], unsigned char len) {
 }
 
 // TODO: testar o overflow
-unsigned char read_line(unsigned char buffer[], unsigned char len, unsigned char stop_char) {
+void read_line(unsigned char buffer[], unsigned char len) {
     unsigned int index = 0;
     unsigned char c = '\0';
 
     do {
         c = read_char();
 
-        if (c == stop_char) {
+        if (c == '\n' || c == '\r') {
             break;
         }
 
@@ -345,8 +332,6 @@ unsigned char read_line(unsigned char buffer[], unsigned char len, unsigned char
     } while (++index < len - 1); // reserve 1 byte for null termination
 
     buffer[index] = '\0';
-
-    return index >= len; // if buffer overflowed
 }
 
 
@@ -362,7 +347,7 @@ void int_serial(void) __interrupt INTERRUPT_UART0 {
 // handles key presses
 void int_record_timer(void) __interrupt INTERRUPT_TIMER2 {
     float temperature;
-    char last_index;
+    int last_index;
     char write_value;
 
     TF2 = 0;
@@ -372,7 +357,7 @@ void int_record_timer(void) __interrupt INTERRUPT_TIMER2 {
         return;
     }
 
-    g_iLastRecording += g_iRecordingTimerPeriod;
+    g_iLastRecording += TIMER2_PERIOD_MS;
 
     if (g_iLastRecording < g_iRecordingInterval) {
         return;
@@ -381,50 +366,64 @@ void int_record_timer(void) __interrupt INTERRUPT_TIMER2 {
     g_iLastRecording = 0;
 
     // read ADC
-    printf_fast_f("ADC\n");
-    temperature = voltage_to_temperature(dac_to_voltage(read_adc(ADC_AIN_0_0, ADC_G1)));
-    printf_fast_f("Read %f from ADC\n", temperature);
+    temperature = clamp_temperature(voltage_to_temperature(dac_to_voltage(read_adc(ADC_AIN_0_0, ADC_G1))));
+    if (g_bSuppressOutput == false) {
+        printf_fast_f("Read %f from ADC\n", temperature);
+    }
 
     // read last index
     last_index = read_eeprom(EEPROM_DEVICE, 0); // TODO: macro address
-    printf_fast_f("Last Index: %d\n", last_index);
+    if (g_bSuppressOutput == false) {
+        printf_fast_f("Last Index: %d\n", last_index);
+    }
+
+    // check if eeprom returned errors
+    if (last_index < 0) {
+        printf_fast_f("Failed to read from EEPROM\n");
+
+        return;
+    }
 
     // convert value
     write_value = temperature_to_byte(temperature);
-    printf_fast_f("Writing %d to EEPROM\n", write_value);
+    if (g_bSuppressOutput == false) {
+        printf_fast_f("Writing %d to EEPROM\n", write_value);
+    }
 
     // write value
-    write_eeprom(EEPROM_DEVICE, last_index + 1, write_value);
+    if (write_eeprom(EEPROM_DEVICE, last_index + 1, write_value) < 0) {
+        printf_fast_f("Failed to write temperature to EEPROM\n");
+    }
 
     // update last index
-    write_eeprom(EEPROM_DEVICE, 0, last_index + 1);
+    if (write_eeprom(EEPROM_DEVICE, 0, last_index + 1) < 0) {
+        printf_fast_f("Failed to update EEPROM pointer\n");
+    }
 }
 
 
 void op_interval(void) {
-    int iNewIntervalSeconds;
 
     printf_fast_f("Enter new recording interval (seconds): ");
 
-    read_line(g_szBuffer, sizeof(g_szBuffer), '\n');
+    read_line(g_szBuffer, sizeof(g_szBuffer));
     newline();
 
-    iNewIntervalSeconds = atoi(g_szBuffer);
-    g_iRecordingInterval = iNewIntervalSeconds * 1000; // TODO: macro second to unit
+    g_iRecordingInterval = atoi(g_szBuffer) * 1000;
 
-    printf_fast_f("New recording interval: %d seconds!\n", iNewIntervalSeconds);
+    printf_fast_f("New recording interval: %u seconds!\n", g_iRecordingInterval / 1000);
 }
 
 
 void op_temperature(void) {
     float fNewTemperature;
+    
+    printf_fast_f("Enter new temperature (e.g., 23.3): ");
 
-    printf_fast_f("Enter new temperature: ");
-
-    read_line(g_szBuffer, sizeof(g_szBuffer), '\n');
+    read_line(g_szBuffer, sizeof(g_szBuffer));
     newline();
 
-    fNewTemperature = atof(g_szBuffer); // TODO: handle both . and ,
+    fNewTemperature = clamp_temperature(atof(g_szBuffer));
     write_dac(voltage_to_dac(temperature_to_voltage(fNewTemperature)));
 
     printf_fast_f("Simulated temperature set at %f C!\n", fNewTemperature);
@@ -452,17 +451,40 @@ void op_view(void) {
 
     pointer = read_eeprom(EEPROM_DEVICE, 0);
 
+    if (pointer < 0) {
+        printf_fast_f("Failed to read EEPROM data pointer\n");
+
+        return;
+    }
+
+    if (pointer == 0) {
+        printf_fast_f("EEPROM is empty!\n");
+
+        return;
+    }
+
     // skip first value since it's the pointer
     for (i = 1; i <= pointer; ++i) {
         value = read_eeprom(EEPROM_DEVICE, i);
 
-        printf_fast_f("[%d]=%f\n", i, byte_to_temperature(value));
+        if (value < 0) {
+            printf_fast_f("Failed to read value at address %d, aborting\n", i);
+
+            break;
+        }
+
+        printf_fast_f("[%d]=%fC\n", i, byte_to_temperature(value));
     }
 }
 
 
 void op_reset(void) {
-    write_eeprom(EEPROM_DEVICE, 0, 0);
+    if (write_eeprom(EEPROM_DEVICE, 0, 0) < 0) {
+        printf_fast_f("Failed to reset EEPROM data pointer\n");
+
+        return;
+    }
+
     printf_fast_f("EEPROM address pointer reset!\n");
 }
 
@@ -478,7 +500,7 @@ void op_get(void) {
 
 void op_record(void) {
     float temperature;
-    char last_index;
+    int last_index;
     char write_value;
 
     // read ADC
@@ -508,11 +530,15 @@ void main(void) {
     Init_Device();
     SFRPAGE = LEGACY_PAGE;
 
+    printf_fast_f("running with buffer%d\n", sizeof(g_szBuffer));
+
     while (true) {
         // read operation
         printf_fast_f("Enter operation (i, t, s, p, v, r, g, z): ");
         operation = read_char();
         newline();
+
+        g_bSuppressOutput = true;
 
         // handle operation
         // TODO: switch case
@@ -535,5 +561,7 @@ void main(void) {
         } else {
             printf_fast_f("\nInvalid operation, please try again!\n");
         }
+
+        g_bSuppressOutput = false;
     }
 }
