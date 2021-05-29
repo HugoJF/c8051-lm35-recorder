@@ -4,13 +4,8 @@
 #include "def_pinos.h"
 
 // BIG8051
-// Timer0 -> Delay
 // Timer1 -> UART
 // Timer2 -> Timer for recording interrupts
-
-// TODO
-// - remove debug functions (own commit)
-// - use __bit where needed
 
 // Macros to make code more readable
 #define true (1)
@@ -22,9 +17,6 @@
 #define OP_START 's'
 #define OP_STOP 'p'
 #define OP_VIEW 'v'
-#define OP_RESET 'r'
-#define OP_GET 'g'
-#define OP_RECORD 'z'
 
 // EEPROM
 #define EEPROM_WRITE (0)
@@ -414,7 +406,6 @@ void op_temperature(void) {
 
 // handles recording start operation
 void op_start(void) {
-    // TODO: move interesting messages
     g_bRecording = true;
 
     printf_fast_f("Temperature recording enabled!\n");
@@ -423,7 +414,6 @@ void op_start(void) {
 
 // handles recording stop operation
 void op_stop(void) {
-    // TODO: move interesting messages
     g_bRecording = false;
 
     printf_fast_f("Temperature recording disabled!\n");
@@ -467,55 +457,6 @@ void op_view(void) {
 }
 
 
-// handles eeprom data pointer reset operation
-void op_reset(void) {
-    if (write_eeprom(EEPROM_DEVICE, EEPROM_DATA_POINTER_ADDRESS, 0) < 0) {
-        printf_fast_f("Failed to reset EEPROM data pointer\n");
-
-        return;
-    }
-
-    printf_fast_f("EEPROM address pointer reset!\n");
-}
-
-
-// handles single ADC read operation
-void op_get(void) {
-    float temperature;
-
-    temperature = voltage_to_temperature(dac_to_voltage(read_adc(ADC_AIN_0_0, ADC_G1)));
-
-    printf_fast_f("Read %fC from ADC\n", temperature);
-}
-
-
-// handles manual record operation
-void op_record(void) {
-    float temperature;
-    int last_index;
-    char write_value;
-
-    // read ADC
-    printf_fast_f("ADC\n");
-    temperature = voltage_to_temperature(dac_to_voltage(read_adc(ADC_AIN_0_0, ADC_G1)));
-    printf_fast_f("Read %f from ADC\n", temperature);
-
-    // read last index
-    last_index = read_eeprom(EEPROM_DEVICE, EEPROM_DATA_POINTER_ADDRESS);
-    printf_fast_f("Last Index: %d\n", last_index);
-
-    // convert value
-    write_value = temperature_to_byte(temperature);
-    printf_fast_f("Writing %d to EEPROM\n", write_value);
-
-    // write value
-    write_eeprom(EEPROM_DEVICE, last_index + 1, write_value);
-
-    // update last index
-    write_eeprom(EEPROM_DEVICE, 0, last_index + 1);
-}
-
-
 void print_usage(void) {
     printf_fast_f("OPERATION LIST:\n");
     printf_fast_f("  i - set temperature recording interval\n");
@@ -523,9 +464,6 @@ void print_usage(void) {
     printf_fast_f("  s - start temperature recording\n");
     printf_fast_f("  p - stop temperature recording\n");
     printf_fast_f("  v - view all temperature records\n");
-    printf_fast_f("  r - reset EEPROM data pointer\n");
-    printf_fast_f("  g - read ADC without recording\n");
-    printf_fast_f("  z - trigger manual temperature recording\n");
 }
 
 
@@ -545,7 +483,7 @@ void main(void) {
 
     while (true) {
         // read operation
-        printf_fast_f("\nEnter operation (i, t, s, p, v, r, g, z): ");
+        printf_fast_f("\nEnter operation (i, t, s, p, v): ");
 
         // wait for user input
         operation = read_char();
@@ -562,9 +500,6 @@ void main(void) {
             case OP_START: op_start(); break;
             case OP_STOP: op_stop(); break;
             case OP_VIEW: op_view(); break;
-            case OP_RESET: op_reset(); break;
-            case OP_GET: op_get(); break;
-            case OP_RECORD: op_record(); break;
             default: printf_fast_f("Invalid operation, please try again!\n");
         }
 
