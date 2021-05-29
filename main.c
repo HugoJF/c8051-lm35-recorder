@@ -14,6 +14,7 @@
 // - check eeprom address overflow (test 127 address limit)
 // - use __bit where needed
 // - test interval limits
+// - clean recording messages
 
 // Macros to make code more readable
 #define true (1)
@@ -388,9 +389,9 @@ void op_interval(void) {
     newline();
 
     // set interval
-    g_iRecordingInterval = atoi(g_szBuffer) * 1000;
+    g_iRecordingInterval = atol(g_szBuffer) * 1000;
 
-    printf_fast_f("New recording interval: %u seconds!\n", g_iRecordingInterval / 1000);
+    printf_fast_f("New recording interval: %lu seconds!\n", g_iRecordingInterval / 1000);
 }
 
 
@@ -537,9 +538,10 @@ void main(void) {
 
     // TODO: boot data pointer if it's at 0
 
+    print_usage();
+
     while (true) {
         // read operation
-        print_usage();
         printf_fast_f("\nEnter operation (i, t, s, p, v, r, g, z): ");
 
         // wait for user input
@@ -553,7 +555,7 @@ void main(void) {
         // handle operation
         switch (operation) {
             case OP_INTERVAL: op_interval(); break;
-            case OP_TEMPERATURE: op_interval(); break;
+            case OP_TEMPERATURE: op_temperature(); break;
             case OP_START: op_start(); break;
             case OP_STOP: op_stop(); break;
             case OP_VIEW: op_view(); break;
