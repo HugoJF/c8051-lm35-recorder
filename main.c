@@ -272,22 +272,6 @@ unsigned int read_adc (unsigned char channel, unsigned char gain) {
 }
 
 
-// delay execution
-void delay(unsigned int ms) {
-    TMOD |= 0x01;
-    TMOD &= ~0x02;
-
-    while (ms-- > 0) {
-        TR0 = 0;
-        TF0 = 0;
-        TL0 = 0x58;
-        TH0 = 0x9e;
-        TR0 = 1;
-        while (TF0 == 0);
-    }
-}
-
-
 // read a single char from serial terminal
 unsigned char read_char(void) {
     unsigned char caught;
