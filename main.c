@@ -10,10 +10,7 @@
 
 // TODO
 // - remove debug functions (own commit)
-// - play around with periods and shit to get more range in interval + add a conversion of seconds to units
-// - check eeprom address overflow (test 127 address limit)
 // - use __bit where needed
-// - test interval limits
 // - clean recording messages
 
 // Macros to make code more readable
@@ -536,8 +533,12 @@ void main(void) {
     Init_Device();
     SFRPAGE = LEGACY_PAGE;
 
-    // TODO: boot data pointer if it's at 0
+    // prepare EEPROM data pointer if it's 0
+    if (read_eeprom(EEPROM_DEVICE, EEPROM_DATA_POINTER_ADDRESS) == 0) {
+        write_eeprom(EEPROM_DEVICE, EEPROM_DATA_POINTER_ADDRESS, 1);
+    }
 
+    // print usage only on startup
     print_usage();
 
     while (true) {
