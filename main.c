@@ -9,13 +9,11 @@
 // Timer2 -> Timer for recording interrupts
 
 // TODO
-// - remove delay (own commit)
 // - remove debug functions (own commit)
 // - play around with periods and shit to get more range in interval + add a conversion of seconds to units
-// - handle eeprom limits
-// - check eeprom address overflow
+// - check eeprom address overflow (test 127 address limit)
 // - use __bit where needed
-// - check adc/dac data ranges (12 bits)
+// - test interval limits
 
 // Macros to make code more readable
 #define true (1)
@@ -87,10 +85,10 @@ unsigned char g_bSuppressOutput = false;
 unsigned char g_bRecording = false;
 
 // Time units since last recording
-unsigned int g_iLastRecording = 0;
+unsigned long g_iLastRecording = 0;
 
 // Time units to wait to record temperature
-unsigned int g_iRecordingInterval = 5000 /*ms*/;
+unsigned long g_iRecordingInterval = 5000 /*ms*/;
 
 
 // handles printf
